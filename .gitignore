@@ -1,0 +1,17 @@
+# Python envs & caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Build/output
+*.log
+dist/
+build/
+.cache/
+
+# IDE
+.vscode/
+.idea/
