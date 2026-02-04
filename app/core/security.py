@@ -7,6 +7,7 @@ from fastapi import FastAPI, status
 from fastapi.requests import Request
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.types import ASGIApp
 
 from app.core.config import Settings, get_settings
 
@@ -16,7 +17,7 @@ class APIKeyAuthMiddleware(BaseHTTPMiddleware):
 
     header_name: str = "X-API-KEY"
 
-    def __init__(self, app: FastAPI, settings: Optional[Settings] = None) -> None:
+    def __init__(self, app: ASGIApp, settings: Optional[Settings] = None) -> None:
         super().__init__(app)
         self._settings = settings or get_settings()
 
