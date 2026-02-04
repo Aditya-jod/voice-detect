@@ -13,13 +13,14 @@ class Settings(BaseSettings):
     max_audio_duration_seconds: float = Field(30.0, alias="VOICE_DETECT_MAX_DURATION")
     max_base64_audio_bytes: int = Field(6 * 1024 * 1024, alias="VOICE_DETECT_MAX_B64_BYTES")
     inference_timeout_seconds: float = Field(8.0, alias="VOICE_DETECT_INFERENCE_TIMEOUT")
+    max_remote_audio_bytes: int = Field(8 * 1024 * 1024, alias="VOICE_DETECT_MAX_REMOTE_BYTES")
+    remote_fetch_timeout_seconds: float = Field(5.0, alias="VOICE_DETECT_REMOTE_TIMEOUT")
 
     model_cache_dir: str = Field(".cache/models", alias="VOICE_DETECT_MODEL_CACHE")
-    embedding_bundle_name: str = Field("WAV2VEC2_ASR_BASE_960H", alias="VOICE_DETECT_EMBEDDING_BUNDLE")
-    classifier_checkpoint_path: str = Field(
-        "app/models/artifacts/classifier_head.pt", alias="VOICE_DETECT_CLASSIFIER_CKPT"
-    )
-    classifier_input_dim: int = Field(768, alias="VOICE_DETECT_CLASSIFIER_INPUT_DIM")
+    hf_model_name: str = Field("MelodyMachine/Deepfake-audio-detection-V2", alias="VOICE_DETECT_HF_MODEL")
+    hf_cache_dir: str = Field(".cache/hf", alias="VOICE_DETECT_HF_CACHE")
+    hf_ai_label: str = Field("FAKE", alias="VOICE_DETECT_HF_AI_LABEL")
+    hf_human_label: str = Field("REAL", alias="VOICE_DETECT_HF_HUMAN_LABEL")
 
     class Config:
         env_file = ".env"
@@ -30,4 +31,4 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     """Return a cached Settings instance to avoid repeated parsing."""
-    return Settings()
+    return Settings()  # pyright: ignore[reportCallIssue]
