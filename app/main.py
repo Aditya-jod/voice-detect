@@ -5,9 +5,10 @@ from fastapi import FastAPI
 
 from app.api.routes import detect_router
 from app.core.config import get_settings
+from app.core.logging_config import configure_logging
 from app.core.security import register_security
 from app.models import ModelRegistry
-from app.services.audio import AudioPreprocessor
+from app.services.audio import AudioPreprocessor, RemoteAudioFetcher
 
 
 APP_TITLE = "AI Voice Authenticity API"
@@ -16,6 +17,7 @@ APP_VERSION = "0.1.0"
 
 def create_app() -> FastAPI:
     settings = get_settings()
+    configure_logging(settings.log_level)
     app = FastAPI(title=APP_TITLE, version=APP_VERSION)
 
     register_security(app, settings)
@@ -27,6 +29,10 @@ def create_app() -> FastAPI:
         app.state.audio_preprocessor = AudioPreprocessor(
             target_sample_rate=settings.target_sample_rate,
             max_duration_seconds=settings.max_audio_duration_seconds,
+        )
+        app.state.remote_fetcher = RemoteAudioFetcher(
+            max_bytes=settings.max_remote_audio_bytes,
+            timeout_seconds=settings.remote_fetch_timeout_seconds,
         )
         model_registry = ModelRegistry(settings=settings)
         model_registry.load()
