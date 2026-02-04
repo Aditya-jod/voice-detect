@@ -1,13 +1,13 @@
 # AI-Generated Voice Detection API
 
-FastAPI-based service that classifies incoming audio clips as AI-generated or human speech across Tamil, English, Hindi, Malayalam, and Telugu. Phase 1 focuses on inference-only usage of a pretrained wav2vec2 encoder plus a lightweight classifier head.
+FastAPI-based service that classifies incoming audio clips as AI-generated or human speech across Tamil, English, Hindi, Malayalam, and Telugu. Phase 1 focuses on inference-only usage of a pretrained Hugging Face detector (`MelodyMachine/Deepfake-audio-detection-V2`).
 
 ## Features
 
 - **Single `/detect` endpoint** accepting Base64-encoded MP3 audio.
 - **API-key authentication** via the `X-API-KEY` header (can be disabled locally).
 - **Audio safeguards**: Base64 size limits, duration checks, resampling, normalization.
-- **Model lifecycle**: wav2vec2 embeddings + classifier head loaded once at startup.
+- **Model lifecycle**: Hugging Face audio-classification model loaded once at startup.
 - **Fallback handling**: predictable response if inference fails or times out.
 - **Health probe**: `/health` route for liveness monitoring.
 
@@ -38,9 +38,12 @@ VOICE_DETECT_MAX_DURATION=30.0
 VOICE_DETECT_MAX_B64_BYTES=6291456
 VOICE_DETECT_INFERENCE_TIMEOUT=8.0
 VOICE_DETECT_MODEL_CACHE=.cache/models
-VOICE_DETECT_EMBEDDING_BUNDLE=WAV2VEC2_ASR_BASE_960H
-VOICE_DETECT_CLASSIFIER_CKPT=app/models/artifacts/classifier_head.pt
-VOICE_DETECT_CLASSIFIER_INPUT_DIM=768
+VOICE_DETECT_MAX_REMOTE_BYTES=8388608
+VOICE_DETECT_REMOTE_TIMEOUT=5.0
+VOICE_DETECT_HF_MODEL=MelodyMachine/Deepfake-audio-detection-V2
+VOICE_DETECT_HF_CACHE=.cache/hf
+VOICE_DETECT_HF_AI_LABEL=FAKE
+VOICE_DETECT_HF_HUMAN_LABEL=REAL
 ```
 
 > Tip: For local development, keep the API key simple and share it as a header when calling `/detect`. In production, use a secret store.
@@ -85,6 +88,15 @@ curl -X POST http://localhost:8000/detect \
         "language": "en"
       }'
 ```
+You may also provide a publicly accessible MP3 URL instead of inline Base64:
+```bash
+curl -X POST http://localhost:8000/detect \
+  -H "Content-Type: application/json" \
+  -H "X-API-KEY: dev-key" \
+  -d '{
+        "audio_url": "https://example.com/sample.mp3"
+      }'
+```
 Response schema:
 ```json
 {
@@ -106,14 +118,13 @@ If inference exceeds `VOICE_DETECT_INFERENCE_TIMEOUT` or errors, the service emi
 ## Architecture Overview
 
 1. **Middleware**: `APIKeyAuthMiddleware` blocks unauthorized requests.
-2. **Routing**: `/detect` validates payloads via Pydantic schemas, then hands audio off to preprocessing and model inference.
+2. **Routing**: `/detect` validates payloads via Pydantic schemas, supports Base64 or remote URL audio inputs, then hands audio off to preprocessing and model inference.
 3. **Audio Pipeline**: Base64 decoding, mono conversion, resampling to `VOICE_DETECT_SAMPLE_RATE`, duration validation, normalization.
-4. **Model Registry**: On startup, loads the specified torchaudio bundle plus classifier checkpoint and keeps them in memory.
-5. **Inference Flow**: `ModelRegistry.predict()` runs in a worker thread, returns classification/confidence/explanations. `asyncio.wait_for` enforces the timeout guard.
+4. **Model Registry**: On startup, downloads/caches the configured Hugging Face model and processor and keeps them in memory.
+5. **Inference Flow**: `ModelRegistry.predict()` tokenizes audio via the HF processor, executes the model, and returns classification/confidence/explanations. `asyncio.wait_for` enforces the timeout guard.
 
 ## Extending Beyond Phase 1
 
-- Replace the placeholder classifier checkpoint with a trained head tuned on multilingual AI vs. human datasets.
 - Add structured logging/metrics (e.g., OpenTelemetry, Prometheus).
 - Build CI/CD pipelines and containerization artifacts for cloud deployment.
 - Implement integration tests and load tests before going public.
