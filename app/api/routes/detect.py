@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from app.core.config import Settings, get_settings
 from app.models import InferenceResult, ModelRegistry
 from app.schemas import DetectionRequest, DetectionResponse
-from app.services.audio import AudioDecoder, AudioPreprocessor, AudioProcessingError
+from app.services.audio import AudioDecoder, AudioPreprocessor, AudioProcessingError, RemoteAudioFetcher
 
 router = APIRouter(prefix="/detect", tags=["detection"])
 logger = logging.getLogger(__name__)
@@ -37,13 +37,19 @@ async def detect_voice(
     settings: Settings = Depends(get_settings),
 ) -> DetectionResponse:
     preprocessor: AudioPreprocessor = request.app.state.audio_preprocessor
+    remote_fetcher: RemoteAudioFetcher = request.app.state.remote_fetcher
     model_registry: ModelRegistry = request.app.state.model_registry
 
     try:
-        audio_bytes = AudioDecoder.decode_base64_mp3(
-            payload.audio_base64,
-            max_bytes=settings.max_base64_audio_bytes,
-        )
+        if payload.audio_base64:
+            audio_bytes = AudioDecoder.decode_base64_mp3(
+                payload.audio_base64,
+                max_bytes=settings.max_base64_audio_bytes,
+            )
+        elif payload.audio_url:
+            audio_bytes = await remote_fetcher.fetch(str(payload.audio_url))
+        else:  # pragma: no cover - guarded by schema
+            raise AudioProcessingError("No audio payload provided.")
         waveform = preprocessor(audio_bytes)
     except AudioProcessingError as exc:
         raise _bad_request(str(exc)) from exc
