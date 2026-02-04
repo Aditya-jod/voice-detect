@@ -1,0 +1,10 @@
+{
+    "venvPath": ".",
+    "venv": ".venv",
+    "include": [
+        "app",
+        "scripts",
+        "tests"
+    ],
+    "typeCheckingMode": "basic"
+}
