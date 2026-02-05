@@ -4,6 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.api.routes import detect_router
@@ -30,6 +31,10 @@ def create_app() -> FastAPI:
     if WEB_DIR.exists():
         # Mount the lightweight testing console at /tester without interfering with the API routes.
         app.mount("/tester", StaticFiles(directory=str(WEB_DIR), html=True), name="tester")
+
+        @app.get("/", include_in_schema=False)
+        async def tester_redirect() -> RedirectResponse:
+            return RedirectResponse(url="/tester/", status_code=307)
 
     @app.on_event("startup")
     async def _startup_event() -> None:
