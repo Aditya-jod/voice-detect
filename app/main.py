@@ -4,7 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from fastapi import FastAPI
-from fastapi.responses import RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.api.routes import detect_router
@@ -18,6 +18,8 @@ from app.services.audio import AudioPreprocessor, RemoteAudioFetcher
 APP_TITLE = "AI Voice Authenticity API"
 APP_VERSION = "0.1.0"
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
+ASSET_MOUNT_PATH = "/detect-assets"
+CONSOLE_ROUTE = "/detect"
 
 
 def create_app() -> FastAPI:
@@ -29,12 +31,19 @@ def create_app() -> FastAPI:
     app.include_router(detect_router)
 
     if WEB_DIR.exists():
-        # Mount the lightweight testing console at /tester without interfering with the API routes.
-        app.mount("/tester", StaticFiles(directory=str(WEB_DIR), html=True), name="tester")
+        app.mount(ASSET_MOUNT_PATH, StaticFiles(directory=str(WEB_DIR)), name="detect-assets")
+
+        def _render_console() -> FileResponse:
+            return FileResponse(WEB_DIR / "index.html")
+
+        @app.get(CONSOLE_ROUTE, include_in_schema=False)
+        @app.get(f"{CONSOLE_ROUTE}/", include_in_schema=False)
+        async def detect_console() -> FileResponse:
+            return _render_console()
 
         @app.get("/", include_in_schema=False)
         async def tester_redirect() -> RedirectResponse:
-            return RedirectResponse(url="/tester/", status_code=307)
+            return RedirectResponse(url=f"{CONSOLE_ROUTE}/", status_code=307)
 
     @app.on_event("startup")
     async def _startup_event() -> None:

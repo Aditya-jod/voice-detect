@@ -5,8 +5,8 @@ import base64
 import io
 from dataclasses import dataclass
 
-import torch
-import torchaudio
+import librosa
+import numpy as np
 
 
 class AudioProcessingError(RuntimeError):
@@ -35,7 +35,7 @@ class AudioDecoder:
 
 @dataclass(slots=True)
 class AudioPreprocessor:
-    """Convert MP3 bytes into a normalized mono waveform tensor."""
+    """Convert MP3/streaming bytes into a normalized mono waveform array."""
 
     target_sample_rate: int
     max_duration_seconds: float
@@ -46,46 +46,54 @@ class AudioPreprocessor:
         if self.max_duration_seconds <= 0:
             raise ValueError("max_duration_seconds must be positive")
 
-    def __call__(self, mp3_bytes: bytes) -> torch.Tensor:
-        waveform, sample_rate = self._load_waveform(mp3_bytes)
+    def __call__(self, audio_bytes: bytes) -> np.ndarray:
+        waveform, sample_rate = self._load_waveform(audio_bytes)
         waveform = self._ensure_mono(waveform)
         waveform = self._resample_if_needed(waveform, sample_rate)
         self._validate_duration(waveform)
         return self._normalize(waveform)
 
-    def _load_waveform(self, mp3_bytes: bytes) -> tuple[torch.Tensor, int]:
-        buffer = io.BytesIO(mp3_bytes)
+    def _load_waveform(self, audio_bytes: bytes) -> tuple[np.ndarray, int]:
+        buffer = io.BytesIO(audio_bytes)
         try:
-            waveform, sample_rate = torchaudio.load(buffer)
-        except Exception as exc:  # pragma: no cover - torchaudio raises many subclasses
-            raise AudioProcessingError("Unable to decode MP3 bytes.") from exc
+            waveform, sample_rate = librosa.load(buffer, sr=None, mono=False)
+        except Exception as exc:  # pragma: no cover - librosa surfaces many decoder errors
+            raise AudioProcessingError("Unable to decode audio bytes.") from exc
 
-        if waveform.numel() == 0:
+        if waveform.size == 0:
             raise AudioProcessingError("Decoded audio is empty.")
-        return waveform, sample_rate
 
-    def _ensure_mono(self, waveform: torch.Tensor) -> torch.Tensor:
-        if waveform.size(0) == 1:
+        if waveform.ndim == 1:
+            waveform = waveform[np.newaxis, :]
+
+        return waveform.astype(np.float32, copy=False), int(sample_rate)
+
+    def _ensure_mono(self, waveform: np.ndarray) -> np.ndarray:
+        if waveform.shape[0] == 1:
             return waveform
-        return waveform.mean(dim=0, keepdim=True)
+        return waveform.mean(axis=0, keepdims=True)
 
-    def _resample_if_needed(self, waveform: torch.Tensor, sample_rate: int) -> torch.Tensor:
+    def _resample_if_needed(self, waveform: np.ndarray, sample_rate: int) -> np.ndarray:
         if sample_rate == self.target_sample_rate:
             return waveform
-        resampler = torchaudio.transforms.Resample(orig_freq=sample_rate, new_freq=self.target_sample_rate)
-        return resampler(waveform)
+        return librosa.resample(
+            waveform,
+            orig_sr=sample_rate,
+            target_sr=self.target_sample_rate,
+            axis=-1,
+        )
 
-    def _validate_duration(self, waveform: torch.Tensor) -> None:
+    def _validate_duration(self, waveform: np.ndarray) -> None:
         max_samples = int(self.target_sample_rate * self.max_duration_seconds)
-        if waveform.size(-1) > max_samples:
-            duration_seconds = waveform.size(-1) / self.target_sample_rate
+        if waveform.shape[-1] > max_samples:
+            duration_seconds = waveform.shape[-1] / self.target_sample_rate
             raise AudioProcessingError(
                 f"Audio duration {duration_seconds:.2f}s exceeds limit of {self.max_duration_seconds:.2f}s."
             )
 
     @staticmethod
-    def _normalize(waveform: torch.Tensor) -> torch.Tensor:
-        peak = waveform.abs().max()
+    def _normalize(waveform: np.ndarray) -> np.ndarray:
+        peak = float(np.abs(waveform).max())
         if peak == 0:
             return waveform
         return waveform / peak

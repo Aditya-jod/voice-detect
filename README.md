@@ -73,7 +73,7 @@ VOICE_DETECT_ONNX_PATH=onnx-model/model/model.onnx
    ```
 
 5. **Open the visual tester**
-  Visit [http://localhost:8000/tester](http://localhost:8000/tester) for a purpose-built UI that can upload MP3 files, hit remote URLs, and display detector responses and logs.
+  Visit [http://localhost:8000/detect](http://localhost:8000/detect) for a purpose-built UI that can upload MP3 files, hit remote URLs, and display detector responses and logs.
 
 ## Fine-tuning the Detector
 
@@ -164,7 +164,7 @@ If inference exceeds `VOICE_DETECT_INFERENCE_TIMEOUT` or errors, the service emi
 
 ## Troubleshooting
 
-- **`torchaudio` backend errors**: Ensure `soundfile` is installed (already in requirements) and libsndfile is available on your OS.
+- **`librosa` decoding errors**: Ensure `ffmpeg` or the system's MP3 decoder is available so `librosa`/`audioread` can parse the clip.
 - **Large payload rejection**: Increase `VOICE_DETECT_MAX_B64_BYTES` or clip audio duration before encoding.
 - **Authentication failures**: Confirm the `X-API-KEY` header matches `VOICE_DETECT_API_KEY`.
 

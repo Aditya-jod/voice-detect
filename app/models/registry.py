@@ -14,7 +14,6 @@ from typing import Any, Callable, Optional
 
 import numpy as np
 import onnxruntime as ort
-import torch
 import httpx
 from transformers import AutoConfig, AutoFeatureExtractor
 
@@ -218,7 +217,7 @@ class ModelRegistry:
         tmp_path.replace(target_path)
         return True
 
-    def predict(self, waveform: torch.Tensor, language: Optional[str] = None) -> InferenceResult:
+    def predict(self, waveform: np.ndarray, language: Optional[str] = None) -> InferenceResult:
         """Run synchronous inference using the pretrained model."""
 
         feature_extractor = self._feature_extractor
@@ -229,7 +228,7 @@ class ModelRegistry:
         if self._ai_index is None or self._human_index is None:
             raise RuntimeError("Model labels have not been configured.")
 
-        audio_array = waveform.squeeze(0).to(torch.float32).cpu().numpy()
+        audio_array = np.asarray(waveform.squeeze(0), dtype=np.float32)
         inputs = feature_extractor(
             audio_array,
             sampling_rate=self.settings.target_sample_rate,
@@ -237,9 +236,7 @@ class ModelRegistry:
         )
         ort_inputs = {session.get_inputs()[0].name: inputs["input_values"]}
         logits = session.run(None, ort_inputs)[0]
-        logits_tensor = torch.from_numpy(np.asarray(logits))
-
-        probabilities = torch.softmax(logits_tensor, dim=-1).squeeze(0).cpu()
+        probabilities = self._softmax(np.asarray(logits))[0]
         ai_prob = float(probabilities[self._ai_index])
         human_prob = float(probabilities[self._human_index])
 
@@ -265,3 +262,10 @@ class ModelRegistry:
             confidence=max(confidence, 0.01),
             explanation=explanation,
         )
+
+    @staticmethod
+    def _softmax(logits: np.ndarray) -> np.ndarray:
+        logits = np.asarray(logits, dtype=np.float32)
+        logits -= np.max(logits, axis=-1, keepdims=True)
+        exp = np.exp(logits)
+        return exp / np.sum(exp, axis=-1, keepdims=True)

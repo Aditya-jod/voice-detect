@@ -16,8 +16,8 @@ class APIKeyAuthMiddleware(BaseHTTPMiddleware):
     """Reject requests lacking the correct API key header."""
 
     header_name: str = "X-API-KEY"
-    public_paths: tuple[str, ...] = ("/", "/health", "/docs", "/openapi.json", "/redoc")
-    public_prefixes: tuple[str, ...] = ("/tester",)
+    public_paths: tuple[str, ...] = ("/", "/detect", "/detect/", "/health", "/docs", "/openapi.json", "/redoc")
+    public_prefixes: tuple[str, ...] = ("/detect-assets",)
 
     def __init__(self, app: ASGIApp, settings: Optional[Settings] = None) -> None:
         super().__init__(app)

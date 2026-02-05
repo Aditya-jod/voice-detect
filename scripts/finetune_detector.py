@@ -77,7 +77,12 @@ def prepare_dataset(args: argparse.Namespace) -> tuple[DatasetDict, List[str]]:
     if args.eval_manifest:
         data_files["validation"] = args.eval_manifest
 
-    dataset = load_dataset("csv", data_files=data_files)
+    dataset_generic = load_dataset("csv", data_files=data_files)
+    if not isinstance(dataset_generic, DatasetDict):
+        raise TypeError(
+            "Expected load_dataset to return a DatasetDict. Provide both train and validation manifests to build multiple splits."
+        )
+    dataset = dataset_generic
     dataset = _rename_column(dataset, args.audio_column, "audio")
     dataset = _rename_column(dataset, args.label_column, "label")
 
