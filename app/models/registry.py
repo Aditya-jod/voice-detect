@@ -42,6 +42,8 @@ class ModelRegistry:
         self._session: Optional[ort.InferenceSession] = None
         self._ai_index: Optional[int] = None
         self._human_index: Optional[int] = None
+        self._ai_label_name: Optional[str] = None
+        self._human_label_name: Optional[str] = None
         self._logger = logging.getLogger(self.__class__.__name__)
         self._attempted_auto_export = False
 
@@ -106,19 +108,52 @@ class ModelRegistry:
 
         ai_label = self.settings.hf_ai_label.upper()
         human_label = self.settings.hf_human_label.upper()
-        missing = [label for label in (ai_label, human_label) if label not in label2id]
-        if missing:
-            raise ValueError(f"Labels {missing} not found in model id2label mapping: {id2label}")
 
-        self._ai_index = label2id[ai_label]
-        self._human_index = label2id[human_label]
+        self._ai_index, self._ai_label_name = self._resolve_label_index(
+            requested_label=ai_label,
+            label2id=label2id,
+            kind="AI",
+        )
+        self._human_index, self._human_label_name = self._resolve_label_index(
+            requested_label=human_label,
+            label2id=label2id,
+            kind="HUMAN",
+        )
         self._logger.info(
             "Model ready with labels AI=%s (index %s), HUMAN=%s (index %s)",
-            ai_label,
+            self._ai_label_name,
             self._ai_index,
-            human_label,
+            self._human_label_name,
             self._human_index,
         )
+
+    def _resolve_label_index(self, requested_label: str, label2id: dict[str, int], kind: str) -> tuple[int, str]:
+        label = requested_label.upper()
+        if label in label2id:
+            return label2id[label], label
+
+        for candidate in self._label_synonyms(kind):
+            if candidate in label2id:
+                self._logger.warning(
+                    "%s label '%s' missing from model. Using fallback '%s' instead.",
+                    kind,
+                    requested_label,
+                    candidate,
+                )
+                return label2id[candidate], candidate
+
+        available = ", ".join(sorted(label2id.keys()))
+        raise ValueError(
+            f"{kind} label '{requested_label}' not found in model outputs. Available labels: [{available}]"
+        )
+
+    @staticmethod
+    def _label_synonyms(kind: str) -> tuple[str, ...]:
+        mapping = {
+            "AI": ("AI", "FAKE", "SYNTHETIC", "DEEPFAKE", "GENERATED", "BOT"),
+            "HUMAN": ("HUMAN", "REAL", "GENUINE", "AUTHENTIC", "LIVE"),
+        }
+        return mapping.get(kind.upper(), tuple())
 
     def _try_generate_onnx(self, target_path: Path) -> bool:
         self._attempted_auto_export = True
@@ -219,7 +254,8 @@ class ModelRegistry:
         explanation = [
             (
                 f"HF model {self.settings.hf_model_name} confidence -> "
-                f"{self.settings.hf_ai_label}: {ai_prob:.3f}, {self.settings.hf_human_label}: {human_prob:.3f}"
+                f"{self._ai_label_name or self.settings.hf_ai_label}: {ai_prob:.3f}, "
+                f"{self._human_label_name or self.settings.hf_human_label}: {human_prob:.3f}"
             ),
             f"Language hint: {language}" if language else "Language hint: unspecified",
         ]
