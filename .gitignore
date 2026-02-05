@@ -23,5 +23,15 @@ build/
 # data 
 data/
 
+# Training artifacts & large binaries
+artifacts/
+*.onnx
+*.pt
+*.pth
+*.mp3
+*.wav
+
 # ONNX exports
 onnx-model/
+
+scripts/export_to_onnx.py

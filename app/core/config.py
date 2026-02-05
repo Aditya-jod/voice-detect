@@ -19,8 +19,9 @@ class Settings(BaseSettings):
     model_cache_dir: str = Field(".cache/models", alias="VOICE_DETECT_MODEL_CACHE")
     hf_model_name: str = Field("MelodyMachine/Deepfake-audio-detection-V2", alias="VOICE_DETECT_HF_MODEL")
     hf_cache_dir: str = Field(".cache/hf", alias="VOICE_DETECT_HF_CACHE")
-    hf_ai_label: str = Field("FAKE", alias="VOICE_DETECT_HF_AI_LABEL")
-    hf_human_label: str = Field("REAL", alias="VOICE_DETECT_HF_HUMAN_LABEL")
+    hf_ai_label: str = Field("AI", alias="VOICE_DETECT_HF_AI_LABEL")
+    hf_human_label: str = Field("HUMAN", alias="VOICE_DETECT_HF_HUMAN_LABEL")
+    onnx_model_path: str = Field("onnx-model/model/model.onnx", alias="VOICE_DETECT_ONNX_PATH")
 
     class Config:
         env_file = ".env"

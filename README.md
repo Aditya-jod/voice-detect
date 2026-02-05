@@ -42,8 +42,8 @@ VOICE_DETECT_MAX_REMOTE_BYTES=8388608
 VOICE_DETECT_REMOTE_TIMEOUT=5.0
 VOICE_DETECT_HF_MODEL=MelodyMachine/Deepfake-audio-detection-V2
 VOICE_DETECT_HF_CACHE=.cache/hf
-VOICE_DETECT_HF_AI_LABEL=FAKE
-VOICE_DETECT_HF_HUMAN_LABEL=REAL
+VOICE_DETECT_HF_AI_LABEL=AI
+VOICE_DETECT_HF_HUMAN_LABEL=HUMAN
 VOICE_DETECT_ONNX_PATH=onnx-model/model/model.onnx
 ```
 
@@ -63,7 +63,7 @@ VOICE_DETECT_ONNX_PATH=onnx-model/model/model.onnx
    ```bash
    pip install -r requirements.txt
    ```
-3. **Export the ONNX graph (once, or whenever updating the HF weights)**
+3. **Export the ONNX graph (once, or whenever updating the HF weights)** – the exporter now applies ONNX Runtime dynamic quantization by default to keep the model small enough for Render's memory limits. Pass `--quantize none` if you need the full-precision graph.
   ```bash
   python scripts/export_to_onnx.py
   ```
@@ -81,7 +81,7 @@ VOICE_DETECT_ONNX_PATH=onnx-model/model/model.onnx
   ```csv
   audio_path,label
   data/human/en_real_001.mp3,HUMAN
-  data/ai/en_fake_001.mp3,AI_GENERATED
+  data/ai/en_fake_001.mp3,AI
   ```
 2. **Run the fine-tuning script** – point to your manifests and desired output directory:
   ```bash
@@ -90,7 +90,7 @@ VOICE_DETECT_ONNX_PATH=onnx-model/model/model.onnx
     --eval-manifest data/manifests/val.csv \
     --output-dir artifacts/finetuned-model
   ```
-3. **Export the updated weights to ONNX** – reuse the exporter but pass the local checkpoint:
+3. **Export the updated weights to ONNX** – reuse the exporter but pass the local checkpoint (quantization remains enabled by default to reduce RAM usage during deployment):
   ```bash
   python scripts/export_to_onnx.py \
     --model-name-or-path artifacts/finetuned-model \

@@ -4,10 +4,12 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
+import numpy as np
+import onnxruntime as ort
 import torch
-from transformers import AutoFeatureExtractor, AutoModelForAudioClassification
+from transformers import AutoConfig, AutoFeatureExtractor
 
 from app.core.config import Settings
 from app.schemas.detection import ClassificationLabel
@@ -29,31 +31,43 @@ class ModelRegistry:
         self.settings = settings
         self.cache_dir = Path(settings.hf_cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
-        self._feature_extractor: Optional[Any] = None
-        self._model: Optional[Any] = None
+        self._feature_extractor: Optional[Callable[..., Any]] = None
+        self._session: Optional[ort.InferenceSession] = None
         self._ai_index: Optional[int] = None
         self._human_index: Optional[int] = None
-        self._device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self._logger = logging.getLogger(self.__class__.__name__)
 
     def load(self) -> None:
-        """Instantiate transformers components once during startup."""
+        """Instantiate feature extractor and ONNX session once during startup."""
 
-        self._logger.info("Loading Hugging Face model '%s'", self.settings.hf_model_name)
-        feature_extractor = AutoFeatureExtractor.from_pretrained(
+        self._logger.info("Initializing feature extractor for '%s'", self.settings.hf_model_name)
+        self._feature_extractor = AutoFeatureExtractor.from_pretrained(
             self.settings.hf_model_name,
             cache_dir=self.cache_dir,
         )
-        model = AutoModelForAudioClassification.from_pretrained(
+
+        config = AutoConfig.from_pretrained(
             self.settings.hf_model_name,
             cache_dir=self.cache_dir,
-        ).to(self._device)
-        model.eval()
+        )
 
-        self._feature_extractor = feature_extractor
-        self._model = model
+        onnx_path = Path(self.settings.onnx_model_path)
+        if not onnx_path.is_file():
+            raise FileNotFoundError(
+                "ONNX model not found at %s. Run the export/quantize scripts or provide a valid VOICE_DETECT_ONNX_PATH." % onnx_path
+            )
 
-        id2label = {int(k): v.upper() for k, v in model.config.id2label.items()}
+        self._logger.info("Loading ONNX runtime session from '%s'", onnx_path)
+        session_options = ort.SessionOptions()
+        session_options.enable_mem_pattern = False
+        session_options.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
+        self._session = ort.InferenceSession(
+            str(onnx_path),
+            sess_options=session_options,
+            providers=["CPUExecutionProvider"],
+        )
+
+        id2label = {int(k): v.upper() for k, v in config.id2label.items()}
         label2id = {label: idx for idx, label in id2label.items()}
 
         ai_label = self.settings.hf_ai_label.upper()
@@ -76,10 +90,10 @@ class ModelRegistry:
         """Run synchronous inference using the pretrained model."""
 
         feature_extractor = self._feature_extractor
-        model = self._model
+        session = self._session
 
-        if feature_extractor is None or model is None:
-            raise RuntimeError("Models have not been loaded yet.")
+        if feature_extractor is None or session is None:
+            raise RuntimeError("Model artefacts have not been loaded yet.")
         if self._ai_index is None or self._human_index is None:
             raise RuntimeError("Model labels have not been configured.")
 
@@ -87,14 +101,13 @@ class ModelRegistry:
         inputs = feature_extractor(
             audio_array,
             sampling_rate=self.settings.target_sample_rate,
-            return_tensors="pt",
+            return_tensors="np",
         )
-        inputs = {key: value.to(self._device) for key, value in inputs.items()}
+        ort_inputs = {session.get_inputs()[0].name: inputs["input_values"]}
+        logits = session.run(None, ort_inputs)[0]
+        logits_tensor = torch.from_numpy(np.asarray(logits))
 
-        with torch.inference_mode():
-            logits = model(**inputs).logits
-
-        probabilities = torch.softmax(logits, dim=-1).squeeze(0).cpu()
+        probabilities = torch.softmax(logits_tensor, dim=-1).squeeze(0).cpu()
         ai_prob = float(probabilities[self._ai_index])
         human_prob = float(probabilities[self._human_index])
 

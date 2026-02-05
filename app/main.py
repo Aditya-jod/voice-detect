@@ -1,7 +1,10 @@
 """FastAPI application entrypoint."""
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
 from app.api.routes import detect_router
 from app.core.config import get_settings
@@ -13,6 +16,7 @@ from app.services.audio import AudioPreprocessor, RemoteAudioFetcher
 
 APP_TITLE = "AI Voice Authenticity API"
 APP_VERSION = "0.1.0"
+WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 
 
 def create_app() -> FastAPI:
@@ -22,6 +26,10 @@ def create_app() -> FastAPI:
 
     register_security(app, settings)
     app.include_router(detect_router)
+
+    if WEB_DIR.exists():
+        # Mount the lightweight testing console at /tester without interfering with the API routes.
+        app.mount("/tester", StaticFiles(directory=str(WEB_DIR), html=True), name="tester")
 
     @app.on_event("startup")
     async def _startup_event() -> None:

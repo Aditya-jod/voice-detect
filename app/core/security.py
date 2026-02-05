@@ -16,12 +16,18 @@ class APIKeyAuthMiddleware(BaseHTTPMiddleware):
     """Reject requests lacking the correct API key header."""
 
     header_name: str = "X-API-KEY"
+    public_paths: tuple[str, ...] = ("/health", "/docs", "/openapi.json", "/redoc")
+    public_prefixes: tuple[str, ...] = ("/tester",)
 
     def __init__(self, app: ASGIApp, settings: Optional[Settings] = None) -> None:
         super().__init__(app)
         self._settings = settings or get_settings()
 
     async def dispatch(self, request: Request, call_next):  # type: ignore[override]
+        path = request.url.path
+        if path in self.public_paths or any(path.startswith(prefix) for prefix in self.public_prefixes):
+            return await call_next(request)
+
         provided_key = request.headers.get(self.header_name)
         if not provided_key:
             return self._unauthorized_response("Missing API key header.")
