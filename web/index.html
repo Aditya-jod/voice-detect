@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Voice Authenticity Lab</title>
+    <link rel="stylesheet" href="/tester/styles.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet" />
+</head>
+<body>
+    <main class="page">
+        <section class="hero">
+            <div>
+                <p class="eyebrow">AI Voice Authenticity API</p>
+                <h1>Interactive Lab Console</h1>
+                <p class="lede">Upload an MP3 sample or point to a remote clip, pick the spoken language, and watch the detector respond in real time.</p>
+                <div class="badges">
+                    <span>FastAPI · ONNX Runtime</span>
+                    <span>Streaming base64 encoder</span>
+                    <span>Timeout guard: 8s</span>
+                </div>
+            </div>
+        </section>
+
+        <section class="panel">
+            <form id="detect-form" class="form" novalidate>
+                <fieldset class="mode-toggle">
+                    <legend>Payload Source</legend>
+                    <label>
+                        <input type="radio" name="source" value="upload" checked />
+                        Upload MP3</label>
+                    <label>
+                        <input type="radio" name="source" value="remote" />
+                        Remote URL</label>
+                </fieldset>
+
+                <div id="upload-area" class="upload">
+                    <label class="dropzone" for="audio-file">
+                        <input type="file" id="audio-file" accept="audio/mpeg" hidden />
+                        <div>
+                            <p>Drag & drop or browse an MP3 file (max ~6 MB)</p>
+                            <small id="file-hint">No file selected yet.</small>
+                        </div>
+                    </label>
+                </div>
+
+                <div id="remote-area" class="remote hidden">
+                    <label for="audio-url">Remote MP3 URL</label>
+                    <input type="url" id="audio-url" placeholder="https://example.com/sample.mp3" />
+                </div>
+
+                <label for="language">Language hint</label>
+                <select id="language">
+                    <option value="">Auto</option>
+                    <option value="en">English</option>
+                    <option value="hi">Hindi</option>
+                    <option value="ta">Tamil</option>
+                    <option value="ml">Malayalam</option>
+                    <option value="te">Telugu</option>
+                </select>
+
+                <label for="api-key">API key</label>
+                <input type="password" id="api-key" placeholder="X-API-KEY" />
+
+                <button type="submit" class="action">Run detection</button>
+            </form>
+
+            <section class="panel results">
+                <header>
+                    <p class="eyebrow">Latest verdict</p>
+                    <div id="status-pill" class="pill pill-idle">Idle</div>
+                </header>
+                <div id="result-body" class="result-body">
+                    <p class="placeholder">Submit an audio clip to see the model output here.</p>
+                </div>
+            </section>
+        </section>
+
+        <section class="log-panel">
+            <header>
+                <h2>Request log</h2>
+                <button type="button" id="clear-log" class="ghost">Clear</button>
+            </header>
+            <div id="log-list" class="log-list"></div>
+        </section>
+    </main>
+
+    <script src="/tester/app.js" type="module"></script>
+</body>
+</html>
