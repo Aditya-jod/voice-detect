@@ -22,3 +22,6 @@ build/
 
 # data 
 data/
+
+# ONNX exports
+onnx-model/
