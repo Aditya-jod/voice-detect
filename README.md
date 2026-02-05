@@ -44,6 +44,7 @@ VOICE_DETECT_HF_MODEL=MelodyMachine/Deepfake-audio-detection-V2
 VOICE_DETECT_HF_CACHE=.cache/hf
 VOICE_DETECT_HF_AI_LABEL=FAKE
 VOICE_DETECT_HF_HUMAN_LABEL=REAL
+VOICE_DETECT_ONNX_PATH=onnx-model/model/model.onnx
 ```
 
 > Tip: For local development, keep the API key simple and share it as a header when calling `/detect`. In production, use a secret store.
@@ -62,10 +63,42 @@ VOICE_DETECT_HF_HUMAN_LABEL=REAL
    ```bash
    pip install -r requirements.txt
    ```
-3. **Run the API**
+3. **Export the ONNX graph (once, or whenever updating the HF weights)**
+  ```bash
+  python scripts/export_to_onnx.py
+  ```
+4. **Run the API**
    ```bash
    uvicorn app.main:app --reload
    ```
+
+5. **Open the visual tester**
+  Visit [http://localhost:8000/tester](http://localhost:8000/tester) for a purpose-built UI that can upload MP3 files, hit remote URLs, and display detector responses and logs.
+
+## Fine-tuning the Detector
+
+1. **Prepare manifests** – create CSV files with at least `audio_path` and `label` columns. Paths can be relative to the repo root, and labels should match the ones configured via `VOICE_DETECT_HF_AI_LABEL` / `VOICE_DETECT_HF_HUMAN_LABEL`.
+  ```csv
+  audio_path,label
+  data/human/en_real_001.mp3,HUMAN
+  data/ai/en_fake_001.mp3,AI_GENERATED
+  ```
+2. **Run the fine-tuning script** – point to your manifests and desired output directory:
+  ```bash
+  python scripts/finetune_detector.py \
+    --train-manifest data/manifests/train.csv \
+    --eval-manifest data/manifests/val.csv \
+    --output-dir artifacts/finetuned-model
+  ```
+3. **Export the updated weights to ONNX** – reuse the exporter but pass the local checkpoint:
+  ```bash
+  python scripts/export_to_onnx.py \
+    --model-name-or-path artifacts/finetuned-model \
+    --output onnx-model/model
+  ```
+4. **Serve the new model** – update `VOICE_DETECT_ONNX_PATH` (and optionally `VOICE_DETECT_HF_MODEL` if you want the registry to load metadata from the fine-tuned dir), then restart `uvicorn`.
+
+The fine-tuning script depends on `datasets`, `evaluate`, and `accelerate`, which are already listed in `requirements.txt`. Re-run `pip install -r requirements.txt` if your virtualenv predates these additions.
 
 ## API Usage
 
