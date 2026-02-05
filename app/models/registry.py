@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 import logging
+import os
+import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Optional
@@ -36,6 +39,7 @@ class ModelRegistry:
         self._ai_index: Optional[int] = None
         self._human_index: Optional[int] = None
         self._logger = logging.getLogger(self.__class__.__name__)
+        self._attempted_auto_export = False
 
     def load(self) -> None:
         """Instantiate feature extractor and ONNX session once during startup."""
@@ -53,9 +57,13 @@ class ModelRegistry:
 
         onnx_path = Path(self.settings.onnx_model_path)
         if not onnx_path.is_file():
-            raise FileNotFoundError(
-                "ONNX model not found at %s. Run the export/quantize scripts or provide a valid VOICE_DETECT_ONNX_PATH." % onnx_path
-            )
+            self._logger.warning("ONNX model missing at '%s'. Attempting auto-export via scripts/export_to_onnx.py", onnx_path)
+            if not self._attempted_auto_export and self._try_generate_onnx(onnx_path):
+                self._logger.info("Successfully generated ONNX graph at '%s'", onnx_path)
+            if not onnx_path.is_file():
+                raise FileNotFoundError(
+                    "ONNX model not found at %s. Run the export/quantize scripts or provide a valid VOICE_DETECT_ONNX_PATH." % onnx_path
+                )
 
         self._logger.info("Loading ONNX runtime session from '%s'", onnx_path)
         session_options = ort.SessionOptions()
@@ -85,6 +93,34 @@ class ModelRegistry:
             human_label,
             self._human_index,
         )
+
+    def _try_generate_onnx(self, target_path: Path) -> bool:
+        self._attempted_auto_export = True
+        script_path = Path(__file__).resolve().parents[2] / "scripts" / "export_to_onnx.py"
+        if not script_path.is_file():
+            self._logger.error("Export script missing at '%s'", script_path)
+            return False
+
+        output_dir = target_path.parent
+        output_dir.mkdir(parents=True, exist_ok=True)
+        cmd = [
+            sys.executable,
+            str(script_path),
+            "--model-name-or-path",
+            self.settings.hf_model_name,
+            "--output",
+            str(output_dir),
+        ]
+        env = os.environ.copy()
+        env.setdefault("HF_HUB_DISABLE_TELEMETRY", "1")
+
+        try:
+            subprocess.run(cmd, check=True, env=env)
+        except subprocess.CalledProcessError as exc:
+            self._logger.error("Auto-export failed with code %s", exc.returncode)
+            return False
+
+        return target_path.is_file()
 
     def predict(self, waveform: torch.Tensor, language: Optional[str] = None) -> InferenceResult:
         """Run synchronous inference using the pretrained model."""
