@@ -1,8 +1,11 @@
 """Model registry that wraps a pretrained Hugging Face detector."""
 from __future__ import annotations
 
+import contextlib
+import gzip
 import logging
 import os
+import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -12,6 +15,7 @@ from typing import Any, Callable, Optional
 import numpy as np
 import onnxruntime as ort
 import torch
+import httpx
 from transformers import AutoConfig, AutoFeatureExtractor
 
 from app.core.config import Settings
@@ -56,14 +60,36 @@ class ModelRegistry:
         )
 
         onnx_path = Path(self.settings.onnx_model_path)
-        if not onnx_path.is_file():
-            self._logger.warning("ONNX model missing at '%s'. Attempting auto-export via scripts/export_to_onnx.py", onnx_path)
+        archive_path = Path(str(onnx_path) + ".gz")
+        if not onnx_path.is_file() and archive_path.is_file():
+            self._logger.info(
+                "Expanding compressed ONNX artifact from '%s' to '%s'",
+                archive_path,
+                onnx_path,
+            )
+            if self._extract_local_archive(archive_path, onnx_path):
+                self._logger.info("Decompressed ONNX graph to '%s'", onnx_path)
+        if not onnx_path.is_file() and self.settings.onnx_download_url:
+            self._logger.info(
+                "ONNX model missing at '%s'. Downloading artifact from '%s'",
+                onnx_path,
+                self.settings.onnx_download_url,
+            )
+            if self._download_onnx(onnx_path, self.settings.onnx_download_url):
+                self._logger.info("Successfully downloaded ONNX graph to '%s'", onnx_path)
+
+        if not onnx_path.is_file() and self.settings.allow_auto_export:
+            self._logger.warning(
+                "ONNX model missing at '%s'. Attempting auto-export via scripts/export_to_onnx.py",
+                onnx_path,
+            )
             if not self._attempted_auto_export and self._try_generate_onnx(onnx_path):
                 self._logger.info("Successfully generated ONNX graph at '%s'", onnx_path)
-            if not onnx_path.is_file():
-                raise FileNotFoundError(
-                    "ONNX model not found at %s. Run the export/quantize scripts or provide a valid VOICE_DETECT_ONNX_PATH." % onnx_path
-                )
+
+        if not onnx_path.is_file():
+            raise FileNotFoundError(
+                "ONNX model not found at %s. Provide VOICE_DETECT_ONNX_PATH, drop a compressed archive alongside it, set VOICE_DETECT_ONNX_URL, or enable VOICE_DETECT_ALLOW_AUTO_EXPORT." % onnx_path
+            )
 
         self._logger.info("Loading ONNX runtime session from '%s'", onnx_path)
         session_options = ort.SessionOptions()
@@ -121,6 +147,41 @@ class ModelRegistry:
             return False
 
         return target_path.is_file()
+
+    def _download_onnx(self, target_path: Path, url: str) -> bool:
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path = target_path.with_suffix(".tmp")
+        timeout = httpx.Timeout(180.0, connect=30.0)
+        try:
+            with httpx.stream("GET", url, follow_redirects=True, timeout=timeout) as response:
+                response.raise_for_status()
+                with tmp_path.open("wb") as sink:
+                    for chunk in response.iter_bytes(1 << 20):
+                        if chunk:
+                            sink.write(chunk)
+        except Exception as exc:
+            self._logger.error("Failed to download ONNX artifact from '%s': %s", url, exc)
+            with contextlib.suppress(FileNotFoundError):
+                tmp_path.unlink()
+            return False
+
+        tmp_path.replace(target_path)
+        return True
+
+    def _extract_local_archive(self, archive_path: Path, target_path: Path) -> bool:
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path = target_path.with_suffix(target_path.suffix + ".tmp")
+        try:
+            with gzip.open(archive_path, "rb") as source, tmp_path.open("wb") as sink:
+                shutil.copyfileobj(source, sink)
+        except Exception as exc:
+            self._logger.error("Failed to expand compressed ONNX artifact '%s': %s", archive_path, exc)
+            with contextlib.suppress(FileNotFoundError):
+                tmp_path.unlink()
+            return False
+
+        tmp_path.replace(target_path)
+        return True
 
     def predict(self, waveform: torch.Tensor, language: Optional[str] = None) -> InferenceResult:
         """Run synchronous inference using the pretrained model."""

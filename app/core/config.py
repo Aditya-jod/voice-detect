@@ -29,6 +29,8 @@ class Settings(BaseSettings):
     hf_ai_label: str = Field("AI", alias="VOICE_DETECT_HF_AI_LABEL")
     hf_human_label: str = Field("HUMAN", alias="VOICE_DETECT_HF_HUMAN_LABEL")
     onnx_model_path: str = Field("onnx-model/model/model.onnx", alias="VOICE_DETECT_ONNX_PATH")
+    onnx_download_url: str | None = Field(None, alias="VOICE_DETECT_ONNX_URL")
+    allow_auto_export: bool = Field(False, alias="VOICE_DETECT_ALLOW_AUTO_EXPORT")
 
 
 @lru_cache

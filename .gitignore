@@ -32,4 +32,4 @@ artifacts/
 *.wav
 
 # ONNX exports
-onnx-model/
+# Track ONNX artifacts so deployments receive the frozen graph.
