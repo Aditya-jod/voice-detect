@@ -1,11 +1,18 @@
 """Application configuration utilities."""
 from functools import lru_cache
 from pydantic import Field
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     """Centralized runtime settings sourced from environment variables."""
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        protected_namespaces=("settings_",),
+    )
 
     api_key: str = Field(..., alias="VOICE_DETECT_API_KEY")
     log_level: str = Field("INFO", alias="VOICE_DETECT_LOG_LEVEL")
@@ -22,11 +29,6 @@ class Settings(BaseSettings):
     hf_ai_label: str = Field("AI", alias="VOICE_DETECT_HF_AI_LABEL")
     hf_human_label: str = Field("HUMAN", alias="VOICE_DETECT_HF_HUMAN_LABEL")
     onnx_model_path: str = Field("onnx-model/model/model.onnx", alias="VOICE_DETECT_ONNX_PATH")
-
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        case_sensitive = False
 
 
 @lru_cache

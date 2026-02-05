@@ -33,5 +33,3 @@ artifacts/
 
 # ONNX exports
 onnx-model/
-
-scripts/export_to_onnx.py

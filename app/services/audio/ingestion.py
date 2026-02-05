@@ -9,9 +9,6 @@ import torch
 import torchaudio
 
 
-torchaudio.set_audio_backend("soundfile")
-
-
 class AudioProcessingError(RuntimeError):
     """Raised when audio ingestion fails."""
 
