@@ -32,19 +32,19 @@ README.md
 Create a `.env` file at the repo root with at least the following variables:
 
 ```
-VOICE_DETECT_API_KEY=dev-key
-VOICE_DETECT_SAMPLE_RATE=16000
-VOICE_DETECT_MAX_DURATION=30.0
-VOICE_DETECT_MAX_B64_BYTES=6291456
-VOICE_DETECT_INFERENCE_TIMEOUT=8.0
-VOICE_DETECT_MODEL_CACHE=.cache/models
-VOICE_DETECT_MAX_REMOTE_BYTES=8388608
-VOICE_DETECT_REMOTE_TIMEOUT=5.0
-VOICE_DETECT_HF_MODEL=MelodyMachine/Deepfake-audio-detection-V2
-VOICE_DETECT_HF_CACHE=.cache/hf
-VOICE_DETECT_HF_AI_LABEL=AI
-VOICE_DETECT_HF_HUMAN_LABEL=HUMAN
-VOICE_DETECT_ONNX_PATH=onnx-model/model/model.onnx
+VOICE_DETECT_API_KEY=<your-api-key>
+VOICE_DETECT_SAMPLE_RATE=<audio-sample-rate-in-hz>
+VOICE_DETECT_MAX_DURATION=<max-audio-duration-in-seconds>
+VOICE_DETECT_MAX_B64_BYTES=<max-base64-payload-size-in-bytes>
+VOICE_DETECT_INFERENCE_TIMEOUT=<inference-timeout-in-seconds>
+VOICE_DETECT_MODEL_CACHE=<local-model-cache-directory>
+VOICE_DETECT_MAX_REMOTE_BYTES=<max-remote-audio-size-in-bytes>
+VOICE_DETECT_REMOTE_TIMEOUT=<remote-fetch-timeout-in-seconds>
+VOICE_DETECT_HF_MODEL=<huggingface-model-identifier>
+VOICE_DETECT_HF_CACHE=<huggingface-cache-directory>
+VOICE_DETECT_HF_AI_LABEL=<label-for-ai-generated-audio>
+VOICE_DETECT_HF_HUMAN_LABEL=<label-for-human-speech>
+VOICE_DETECT_ONNX_PATH=<path-to-onnx-model-file>
 ```
 
 > Tip: For local development, keep the API key simple and share it as a header when calling `/detect`. In production, use a secret store.
